@@ -1,27 +1,64 @@
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Activity, Bell, Boxes, CalendarDays, ChevronLeft, CircleDollarSign, ClipboardCheck, LayoutDashboard, Menu, Package, Plus, Search, Settings, Users, WalletCards, X } from 'lucide-react'
 import './App.css'
 
 type Dashboard = { metrics: { swimmerCount: number; subscriptionCount: number; groupCount: number; coachCount: number; collected: number; outstanding: number; lowStock: number }; recentSwimmers: Array<Record<string, string | number>>; alerts: Array<Record<string, string | number>> }
 type View = 'الرئيسية' | 'السباحون' | 'الاشتراكات' | 'الحضور' | 'المدفوعات' | 'المخزون'
+type Parent = { id: string; name: string; phone: string }
+type SwimmerForm = { firstName: string; fatherName: string; familyName: string; parentId: string; birthDate: string; gender: string; level: string }
 
 const money = (value: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(value)
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : ''
-const api = (path: string) => fetch(`${API_BASE}/api${path}`).then((response) => response.json())
+const api = (path: string, options?: RequestInit) => fetch(`${API_BASE}/api${path}`, options).then(async (response) => {
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error ?? 'حدث خطأ أثناء تنفيذ العملية')
+  return data
+})
 
 function App() {
   const [view, setView] = useState<View>('الرئيسية')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [swimmers, setSwimmers] = useState<Array<Record<string, string | number>>>([])
   const [inventory, setInventory] = useState<Array<Record<string, string | number>>>([])
+  const [parents, setParents] = useState<Parent[]>([])
   const [menuOpen, setMenuOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [formOpen, setFormOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [form, setForm] = useState<SwimmerForm>({ firstName: '', fatherName: '', familyName: '', parentId: '', birthDate: '', gender: 'ذكر', level: 'مبتدئ' })
 
-  useEffect(() => {
+  const loadData = () => {
     api('/dashboard').then(setDashboard).catch(() => setDashboard(null))
     api('/swimmers').then(setSwimmers).catch(() => setSwimmers([]))
     api('/inventory').then(setInventory).catch(() => setInventory([]))
+    api('/parents').then(setParents).catch(() => setParents([]))
+  }
+
+  useEffect(() => {
+    loadData()
   }, [])
+
+  const openAddSwimmer = () => {
+    setMessage(null)
+    setForm({ firstName: '', fatherName: '', familyName: '', parentId: parents[0]?.id ?? '', birthDate: '', gender: 'ذكر', level: 'مبتدئ' })
+    setFormOpen(true)
+  }
+
+  const saveSwimmer = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSaving(true)
+    setMessage(null)
+    try {
+      const result = await api('/swimmers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      setMessage({ type: 'success', text: `تم حفظ السباح بنجاح: ${result.id}` })
+      setFormOpen(false)
+      loadData()
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'تعذر حفظ البيانات' })
+    } finally { setSaving(false) }
+  }
 
   const nav = [
     { label: 'الرئيسية', icon: LayoutDashboard }, { label: 'السباحون', icon: Users }, { label: 'الاشتراكات', icon: ClipboardCheck },
@@ -40,7 +77,8 @@ function App() {
       <main className="main-content">
         <header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(true)}><Menu size={22} /></button><div className="breadcrumb"><span>الأكاديمية</span><ChevronLeft size={15} /><b>{view}</b></div><div className="top-actions"><button className="icon-button notification"><Bell size={20} /><i /></button><div className="date-label">الثلاثاء، ٨ سبتمبر ٢٠٢٦</div></div></header>
         <div className="page-wrap">
-          <section className="page-heading"><div><p className="eyebrow">نظرة عامة على الأكاديمية</p><h1>{view === 'الرئيسية' ? 'صباح الخير، محمد' : view}</h1><p className="subheading">إليك ملخص الأداء والتشغيل في أكاديمية Back Orca اليوم.</p></div><button className="primary-button"><Plus size={18} /> إضافة سجل جديد</button></section>
+          {message && <div className={`toast ${message.type}`}>{message.text}<button onClick={() => setMessage(null)}><X size={15} /></button></div>}
+          <section className="page-heading"><div><p className="eyebrow">نظرة عامة على الأكاديمية</p><h1>{view === 'الرئيسية' ? 'صباح الخير، محمد' : view}</h1><p className="subheading">إليك ملخص الأداء والتشغيل في أكاديمية Back Orca اليوم.</p></div><button className="primary-button" onClick={openAddSwimmer}><Plus size={18} /> إضافة سبّاح</button></section>
           {view === 'الرئيسية' && <>
             <section className="metric-grid">
               <Metric icon={Users} label="السباحون النشطون" value={dashboard?.metrics.swimmerCount ?? 0} trend="+12%" tone="teal" />
@@ -51,9 +89,10 @@ function App() {
             <div className="content-grid"><section className="panel chart-panel"><div className="panel-heading"><div><h2>نشاط الأكاديمية</h2><p>الحضور والتحصيل خلال هذا الشهر</p></div><select defaultValue="هذا الشهر"><option>هذا الشهر</option><option>هذا الأسبوع</option></select></div><div className="chart"><div className="chart-y"><span>١٠٠</span><span>٧٥</span><span>٥٠</span><span>٢٥</span><span>٠</span></div><div className="chart-area"><div className="grid-lines"><i /><i /><i /><i /><i /></div><svg viewBox="0 0 700 180" preserveAspectRatio="none"><path className="line-fill" d="M0 140 C40 130, 65 100, 110 115 S170 155, 210 100 S270 90, 305 110 S350 70, 390 85 S430 120, 470 68 S530 92, 570 45 S625 70, 700 25 L700 180 L0 180 Z" /><path className="line" d="M0 140 C40 130, 65 100, 110 115 S170 155, 210 100 S270 90, 305 110 S350 70, 390 85 S430 120, 470 68 S530 92, 570 45 S625 70, 700 25" /></svg><div className="chart-labels"><span>١ سبتمبر</span><span>٧ سبتمبر</span><span>١٤ سبتمبر</span><span>٢١ سبتمبر</span><span>٣٠ سبتمبر</span></div></div></div><div className="legend"><span><i className="teal-dot" /> التحصيل</span><span><i className="coral-dot" /> الحضور</span></div></section><section className="panel alerts-panel"><div className="panel-heading"><div><h2>تنبيهات مهمة</h2><p>تحتاج إلى انتباهك</p></div><button className="text-button">عرض الكل</button></div>{dashboard?.alerts.length ? dashboard.alerts.slice(0, 4).map((alert) => <div className="alert-row" key={String(alert.id)}><div className="alert-icon"><Bell size={16} /></div><div><b>اشتراك {alert.swimmer_name}</b><span>ينتهي في {alert.end_date}</span></div><ChevronLeft size={16} /></div>) : <div className="empty">لا توجد تنبيهات عاجلة</div>}{(dashboard?.metrics.lowStock ?? 0) > 0 && <div className="alert-row"><div className="alert-icon orange"><Package size={16} /></div><div><b>مخزون منخفض</b><span>{dashboard?.metrics.lowStock} أصناف تحتاج إعادة طلب</span></div><ChevronLeft size={16} /></div>}</section></div>
             <section className="panel table-panel"><div className="panel-heading"><div><h2>آخر السباحين المسجلين</h2><p>بيانات محدثة لحظيًا من قاعدة البيانات</p></div><button className="text-button" onClick={() => setView('السباحون')}>عرض جميع السباحين <ChevronLeft size={15} /></button></div><SwimmerTable swimmers={dashboard?.recentSwimmers ?? []} /></section>
           </>}
-          {view === 'السباحون' && <section className="panel table-panel full-panel"><div className="panel-heading"><div><h2>قاعدة بيانات السباحين</h2><p>كل سبّاح يُسجل مرة واحدة ويُستخدم في بقية النظام.</p></div><label className="search"><Search size={17} /><input placeholder="ابحث بالاسم أو الرقم" value={search} onChange={(event) => setSearch(event.target.value)} /></label></div><SwimmerTable swimmers={shownSwimmers} /></section>}
+          {view === 'السباحون' && <section className="panel table-panel full-panel"><div className="panel-heading"><div><h2>قاعدة بيانات السباحين</h2><p>كل سبّاح يُسجل مرة واحدة ويُستخدم في بقية النظام.</p></div><div className="panel-actions"><label className="search"><Search size={17} /><input placeholder="ابحث بالاسم أو الرقم" value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="primary-button compact" onClick={openAddSwimmer}><Plus size={16} /> إضافة سبّاح</button></div></div><SwimmerTable swimmers={shownSwimmers} /></section>}
           {view === 'المخزون' && <section className="panel table-panel full-panel"><div className="panel-heading"><div><h2>المخزون</h2><p>الرصيد الحالي والتنبيهات حسب حد إعادة الطلب.</p></div><button className="primary-button"><Plus size={18} /> إضافة صنف</button></div><InventoryTable inventory={inventory} /></section>}
           {!['الرئيسية', 'السباحون', 'المخزون'].includes(view) && <section className="empty-state panel"><div className="empty-state-icon"><CalendarDays size={28} /></div><h2>وحدة {view}</h2><p>الواجهة جاهزة للربط مع الجداول التشغيلية في قاعدة البيانات.</p><button className="primary-button"><Plus size={18} /> إنشاء أول سجل</button></section>}
+          {formOpen && <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setFormOpen(false) }}><form className="modal" onSubmit={saveSwimmer}><div className="modal-heading"><div><h2>إضافة سبّاح جديد</h2><p>أدخل البيانات الأساسية، ثم سيظهر السباح في كل الشاشات.</p></div><button type="button" className="modal-close" onClick={() => setFormOpen(false)}><X size={18} /></button></div><div className="form-grid"><label>الاسم الأول<input required value={form.firstName} onChange={(event) => setForm({ ...form, firstName: event.target.value })} /></label><label>اسم الأب<input value={form.fatherName} onChange={(event) => setForm({ ...form, fatherName: event.target.value })} /></label><label>اسم العائلة<input value={form.familyName} onChange={(event) => setForm({ ...form, familyName: event.target.value })} /></label><label>ولي الأمر<select required value={form.parentId} onChange={(event) => setForm({ ...form, parentId: event.target.value })}><option value="">اختر ولي الأمر</option>{parents.map((parent) => <option key={parent.id} value={parent.id}>{parent.name} - {parent.phone}</option>)}</select></label><label>تاريخ الميلاد<input type="date" value={form.birthDate} onChange={(event) => setForm({ ...form, birthDate: event.target.value })} /></label><label>النوع<select value={form.gender} onChange={(event) => setForm({ ...form, gender: event.target.value })}><option>ذكر</option><option>أنثى</option></select></label><label>المستوى<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value })}><option>مبتدئ</option><option>متوسط</option><option>متقدم</option></select></label></div><div className="modal-footer"><button type="button" className="secondary-button" onClick={() => setFormOpen(false)}>إلغاء</button><button type="submit" className="primary-button" disabled={saving || !parents.length}>{saving ? 'جار الحفظ...' : 'حفظ السباح'}</button>{!parents.length && <small>أضف ولي أمر أولًا من قاعدة البيانات.</small>}</div></form></div>}
         </div>
       </main>
     </div>
