@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 const app = express()
 const port = Number(process.env.PORT ?? 3001)
 const mongoUri = process.env.MONGODB_URI
-const jwtSecret = process.env.JWT_SECRET ?? 'back-orca-development-secret'
+const jwtSecret = process.env.JWT_SECRET ?? 'black-orca-development-secret'
 if (!mongoUri) throw new Error('MONGODB_URI is required')
 app.use(cors())
 app.use(express.json())
@@ -72,7 +72,7 @@ async function seedDatabase() {
 }
 
 async function seedAdmin() {
-  const email = process.env.ADMIN_EMAIL ?? 'admin@backorca.local'
+  const email = process.env.ADMIN_EMAIL ?? 'admin@blackorca.local'
   const password = process.env.ADMIN_PASSWORD ?? 'ChangeMe123!'
   const existingAdmin = await User.findOne({ email })
   if (existingAdmin) { await User.updateOne({ _id: existingAdmin._id }, { name: 'Romaysaa', role: 'مدير' }); return }
@@ -80,7 +80,7 @@ async function seedAdmin() {
   console.log(`Admin account created for ${email}. Set ADMIN_PASSWORD in production.`)
 }
 
-app.get('/api/health', (_req, res) => res.json({ ok: mongoose.connection.readyState === 1, service: 'Back Orca API', database: 'MongoDB' }))
+app.get('/api/health', (_req, res) => res.json({ ok: mongoose.connection.readyState === 1, service: 'Black Orca API', database: 'MongoDB' }))
 app.post('/api/login', async (req, res) => {
   const user = await User.findOne({ email: String(req.body.email).toLowerCase(), active: true })
   if (!user || !(await bcrypt.compare(String(req.body.password), user.passwordHash))) return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' })
@@ -321,6 +321,6 @@ async function start() {
   await mongoose.connect(mongoUri)
   await seedDatabase()
   await seedAdmin()
-  app.listen(port, () => console.log(`Back Orca API running on http://localhost:${port}`))
+  app.listen(port, () => console.log(`Black Orca API running on http://localhost:${port}`))
 }
 start().catch((error) => { console.error('MongoDB connection failed', error); process.exit(1) })

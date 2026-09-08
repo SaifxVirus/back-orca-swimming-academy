@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: back-orca
+    name: black-orca
     runtime: node
     plan: starter
     buildCommand: npm ci --include=dev && npm run build
