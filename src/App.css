@@ -2,8 +2,8 @@
   --ink: #203038;
   --muted: #879497;
   --line: #e4eae8;
-  --teal: #128f8e;
-  --teal-light: #e6f5f2;
+  --teal: #2563eb;
+  --teal-light: #eaf2ff;
   --coral: #e87667;
   --coral-light: #fcece8;
   --gold: #c6903d;
@@ -15,14 +15,14 @@
   --panel-alt: #f8faf9;
   --shadow: #20303814;
   --soft-black: #20303866;
-  --login-bg: radial-gradient(circle at 15% 20%, #dcefeb 0, transparent 35%), #f5f7f6;
+  --login-bg: radial-gradient(circle at 15% 20%, rgba(37, 99, 235, 0.10) 0, transparent 35%), #f5f7f6;
 }
 :root[data-theme='dark'] {
   --ink: #edf7ff;
   --muted: #9bb0b7;
   --line: #29414b;
-  --teal: #67d7d2;
-  --teal-light: rgba(103, 215, 210, 0.16);
+  --teal: #5b8cff;
+  --teal-light: rgba(91, 140, 255, 0.18);
   --coral: #ff9d8d;
   --coral-light: rgba(255, 157, 141, 0.18);
   --gold: #f0c476;
@@ -34,7 +34,7 @@
   --panel-alt: #1b2e39;
   --shadow: rgba(2, 8, 10, 0.5);
   --soft-black: rgba(3, 7, 10, 0.74);
-  --login-bg: radial-gradient(circle at 15% 20%, rgba(103, 215, 210, 0.12) 0, transparent 35%), #09161d;
+  --login-bg: radial-gradient(circle at 15% 20%, rgba(91, 140, 255, 0.12) 0, transparent 35%), #09161d;
 }
 .app-shell { min-height: 100vh; display: flex; background: var(--bg); }
 .sidebar { width: 252px; flex: 0 0 252px; background: var(--sidebar); border-left: 1px solid var(--line); padding: 28px 17px 20px; display: flex; flex-direction: column; min-height: 100vh; }
