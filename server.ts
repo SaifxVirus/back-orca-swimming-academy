@@ -196,6 +196,24 @@ app.post('/api/inventory', async (req, res) => {
     res.status(201).json({ id: item._id })
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إضافة الصنف' }) }
 })
+app.patch('/api/inventory/:id', async (req, res) => {
+  try {
+    const { sku, name, category, quantity, averageCost, salePrice, minQuantity } = req.body
+    if (!sku || !name) return res.status(400).json({ error: 'كود الصنف واسم الصنف مطلوبان' })
+    const item = await InventoryItem.findByIdAndUpdate(req.params.id, { sku, name, category, quantity: Number(quantity) || 0, averageCost: Number(averageCost) || 0, salePrice: Number(salePrice) || 0, minQuantity: Number(minQuantity) || 0 }, { new: true, runValidators: true })
+    if (!item) return res.status(404).json({ error: 'الصنف غير موجود' })
+    res.json({ id: item._id })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر تعديل الصنف' }) }
+})
+app.delete('/api/inventory/:id', async (req, res) => {
+  try {
+    const StockMovement = mongoose.model('StockMovement')
+    if (await StockMovement.exists({ item: req.params.id })) return res.status(409).json({ error: 'لا يمكن حذف صنف لديه حركات مخزون مرتبطة' })
+    const item = await InventoryItem.findByIdAndDelete(req.params.id)
+    if (!item) return res.status(404).json({ error: 'الصنف غير موجود' })
+    res.json({ ok: true })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر حذف الصنف' }) }
+})
 app.get('/api/parents', async (_req, res) => {
   const parents = await Parent.find().sort({ _id: -1 }).lean()
   const counts = await Swimmer.aggregate([{ $group: { _id: '$parent', count: { $sum: 1 } } }])
