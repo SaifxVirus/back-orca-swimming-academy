@@ -1,5 +1,7 @@
 import cors from 'cors'
 import express from 'express'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 import mongoose, { Schema, Types } from 'mongoose'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -9,9 +11,12 @@ import { fileURLToPath } from 'node:url'
 const app = express()
 const port = Number(process.env.PORT ?? 3001)
 const mongoUri = process.env.MONGODB_URI
+const jwtSecret = process.env.JWT_SECRET ?? 'back-orca-development-secret'
 if (!mongoUri) throw new Error('MONGODB_URI is required')
 app.use(cors())
 app.use(express.json())
+
+const userSchema = new Schema({ name: { type: String, required: true }, email: { type: String, required: true, unique: true, lowercase: true }, passwordHash: { type: String, required: true }, role: { type: String, default: 'استقبال' }, active: { type: Boolean, default: true } }, { timestamps: true })
 
 const parentSchema = new Schema({ code: { type: String, unique: true }, name: { type: String, required: true }, phone: { type: String, required: true }, email: String, address: String, notes: String }, { timestamps: true })
 const coachSchema = new Schema({ code: { type: String, unique: true }, name: { type: String, required: true }, phone: String, contractType: { type: String, default: 'راتب شهري' }, baseSalary: { type: Number, default: 0, min: 0 }, sessionRate: { type: Number, default: 0, min: 0 }, commissionRate: { type: Number, default: 0, min: 0 }, status: { type: String, default: 'نشط' } })
@@ -35,6 +40,7 @@ const Subscription = mongoose.model('Subscription', subscriptionSchema)
 const Invoice = mongoose.model('Invoice', invoiceSchema)
 const Payment = mongoose.model('Payment', paymentSchema)
 const Settings = mongoose.model('Settings', settingsSchema)
+const User = mongoose.model('User', userSchema)
 mongoose.model('Session', sessionSchema)
 mongoose.model('Attendance', attendanceSchema)
 const InventoryItem = mongoose.model('InventoryItem', inventorySchema)
@@ -44,6 +50,14 @@ const nextCode = async (model: mongoose.Model<any>, prefix: string) => `${prefix
 const fullName = (swimmer: any) => [swimmer.firstName, swimmer.fatherName, swimmer.familyName].filter(Boolean).join(' ')
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const publicDir = path.join(currentDir, 'dist')
+
+const authenticate = (req: any, res: any, next: any) => {
+  if (req.path === '/api/login' || req.path === '/api/health') return next()
+  const token = req.headers.authorization?.replace('Bearer ', '')
+  try { req.user = jwt.verify(token, jwtSecret); next() } catch { res.status(401).json({ error: 'انتهت الجلسة أو بيانات الدخول غير صحيحة' }) }
+}
+const requireAdmin = (req: any, res: any, next: any) => req.user?.role === 'مدير' ? next() : res.status(403).json({ error: 'هذه العملية متاحة للمدير فقط' })
+app.use(authenticate)
 
 async function seedDatabase() {
   if (await Parent.exists({})) return
@@ -57,7 +71,27 @@ async function seedDatabase() {
   await InventoryItem.create({ sku: 'GOG-001', name: 'نظارة سباحة', category: 'معدات', quantity: 4, averageCost: 280, salePrice: 400, minQuantity: 5 })
 }
 
+async function seedAdmin() {
+  if (await User.exists({})) return
+  const email = process.env.ADMIN_EMAIL ?? 'admin@backorca.local'
+  const password = process.env.ADMIN_PASSWORD ?? 'ChangeMe123!'
+  await User.create({ name: 'مدير النظام', email, passwordHash: await bcrypt.hash(password, 12), role: 'مدير' })
+  console.log(`Admin account created for ${email}. Set ADMIN_PASSWORD in production.`)
+}
+
 app.get('/api/health', (_req, res) => res.json({ ok: mongoose.connection.readyState === 1, service: 'Back Orca API', database: 'MongoDB' }))
+app.post('/api/login', async (req, res) => {
+  const user = await User.findOne({ email: String(req.body.email).toLowerCase(), active: true })
+  if (!user || !(await bcrypt.compare(String(req.body.password), user.passwordHash))) return res.status(401).json({ error: 'البريد الإلكتروني أو كلمة المرور غير صحيحة' })
+  const token = jwt.sign({ id: user._id, name: user.name, role: user.role }, jwtSecret, { expiresIn: '7d' })
+  res.json({ token, user: { name: user.name, email: user.email, role: user.role }, expiresInDays: 7 })
+})
+app.get('/api/me', async (req: any, res) => res.json(await User.findById(req.user.id).select('name email role active').lean()))
+app.get('/api/users', requireAdmin, async (_req, res) => res.json(await User.find().select('name email role active createdAt').sort({ createdAt: -1 }).lean()))
+app.post('/api/users', requireAdmin, async (req, res) => {
+  try { const { name, email, password, role } = req.body; if (!name || !email || !password) return res.status(400).json({ error: 'الاسم والبريد وكلمة المرور مطلوبة' }); const user = await User.create({ name, email, passwordHash: await bcrypt.hash(password, 12), role: role ?? 'استقبال' }); res.status(201).json({ id: user._id }) } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إضافة الحساب' }) }
+})
+app.patch('/api/users/:id', requireAdmin, async (req, res) => { const user = await User.findByIdAndUpdate(req.params.id, { name: req.body.name, role: req.body.role, active: req.body.active }, { new: true }).select('name email role active'); if (!user) return res.status(404).json({ error: 'الحساب غير موجود' }); res.json(user) })
 app.get('/api/settings', async (_req, res) => res.json(await Settings.findOne().lean() ?? await Settings.create({})))
 app.put('/api/settings', async (req, res) => {
   try { res.json(await Settings.findOneAndUpdate({}, req.body, { new: true, upsert: true, runValidators: true })) } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر حفظ الإعدادات' }) }
@@ -274,6 +308,7 @@ if (process.env.NODE_ENV === 'production') { app.use(express.static(publicDir));
 async function start() {
   await mongoose.connect(mongoUri)
   await seedDatabase()
+  await seedAdmin()
   app.listen(port, () => console.log(`Back Orca API running on http://localhost:${port}`))
 }
 start().catch((error) => { console.error('MongoDB connection failed', error); process.exit(1) })

@@ -11,13 +11,13 @@ type SwimmerForm = { firstName: string; fatherName: string; familyName: string; 
 
 const money = (value: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(value)
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : ''
-const api = (path: string, options?: RequestInit) => fetch(`${API_BASE}/api${path}`, options).then(async (response) => {
+const api = (path: string, options: RequestInit = {}) => fetch(`${API_BASE}/api${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}), ...(localStorage.getItem('back_orca_token') ? { Authorization: `Bearer ${localStorage.getItem('back_orca_token')}` } : {}) } }).then(async (response) => {
   const data = await response.json()
   if (!response.ok) throw new Error(data.error ?? 'حدث خطأ أثناء تنفيذ العملية')
   return data
 })
 
-function App() {
+function DashboardApp({ onLogout }: { onLogout: () => void }) {
   const [view, setView] = useState<View>('الرئيسية')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [swimmers, setSwimmers] = useState<Array<Record<string, string | number>>>([])
@@ -101,7 +101,7 @@ function App() {
         <div className="brand"><div className="brand-mark">BO</div><div><strong>Back Orca</strong><span>أكاديمية السباحة</span></div><button className="close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
         <div className="workspace"><span className="status-dot" /> النظام يعمل بشكل طبيعي</div>
         <nav>{nav.map(({ label, icon: Icon }) => <button key={label} className={view === label ? 'active' : ''} onClick={() => { setView(label); setMenuOpen(false) }}><Icon size={19} /><span>{label}</span>{label === 'الرئيسية' && <span className="nav-arrow"><ChevronLeft size={15} /></span>}</button>)}</nav>
-        <div className="sidebar-bottom"><button type="button" onClick={() => { setView('الإعدادات'); setMenuOpen(false) }}><Settings size={18} /> الإعدادات</button><div className="user-card"><div className="avatar">م</div><div><b>محمد مدير</b><span>مدير النظام</span></div><ChevronLeft size={15} /></div></div>
+        <div className="sidebar-bottom"><button type="button" onClick={() => { setView('الإعدادات'); setMenuOpen(false) }}><Settings size={18} /> الإعدادات</button><button type="button" className="logout-button" onClick={onLogout}>تسجيل الخروج</button><div className="user-card"><div className="avatar">م</div><div><b>محمد مدير</b><span>مدير النظام</span></div><ChevronLeft size={15} /></div></div>
       </aside>
       <main className="main-content">
         <header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(true)}><Menu size={22} /></button><div className="breadcrumb"><span>الأكاديمية</span><ChevronLeft size={15} /><b>{view}</b></div><div className="top-actions"><button className="icon-button notification"><Bell size={20} /><i /></button><div className="date-label">الثلاثاء، ٨ سبتمبر ٢٠٢٦</div></div></header>
@@ -203,7 +203,27 @@ function SettingsPage() {
   const [saved, setSaved] = useState(false)
   useEffect(() => { api('/settings').then(setForm).catch(() => undefined) }, [])
   const save = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); await api('/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); setSaved(true); window.setTimeout(() => setSaved(false), 2500) }
-  return <section className="panel settings-panel"><div className="panel-heading"><div><h2>مركز الإعدادات</h2><p>إعدادات الأكاديمية والتنبيهات والمخزون.</p></div><Settings size={22} color="var(--teal)" /></div><form className="settings-form" onSubmit={save}><label>اسم الأكاديمية<input value={form.academyName} onChange={(event) => setForm({ ...form, academyName: event.target.value })} /></label><label>العملة<select value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}><option>جنيه مصري</option><option>دولار أمريكي</option></select></label><label>التنبيه قبل انتهاء الاشتراك بأيام<input type="number" min="0" value={form.alertDays} onChange={(event) => setForm({ ...form, alertDays: Number(event.target.value) })} /></label><label>قاعدة العمولة<input value={form.commissionRule} onChange={(event) => setForm({ ...form, commissionRule: event.target.value })} /></label><label className="toggle-label"><input type="checkbox" checked={form.allowNegativeStock} onChange={(event) => setForm({ ...form, allowNegativeStock: event.target.checked })} /> السماح بالمخزون السالب</label><div className="modal-footer"><button className="primary-button" type="submit">حفظ الإعدادات</button>{saved && <span className="settings-saved">تم حفظ الإعدادات</span>}</div></form></section>
+  const addAccount = async () => { const name = window.prompt('اسم المستخدم'); const email = window.prompt('البريد الإلكتروني'); const password = window.prompt('كلمة المرور المؤقتة'); if (!name || !email || !password) return; try { await api('/users', { method: 'POST', body: JSON.stringify({ name, email, password, role: 'استقبال' }) }); window.alert('تم إنشاء الحساب.'); } catch (error) { window.alert(error instanceof Error ? error.message : 'تعذر إنشاء الحساب') } }
+  return <section className="panel settings-panel"><div className="panel-heading"><div><h2>مركز الإعدادات</h2><p>إعدادات الأكاديمية والتنبيهات والمخزون.</p></div><Settings size={22} color="var(--teal)" /></div><form className="settings-form" onSubmit={save}><label>اسم الأكاديمية<input value={form.academyName} onChange={(event) => setForm({ ...form, academyName: event.target.value })} /></label><label>العملة<select value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}><option>جنيه مصري</option><option>دولار أمريكي</option></select></label><label>التنبيه قبل انتهاء الاشتراك بأيام<input type="number" min="0" value={form.alertDays} onChange={(event) => setForm({ ...form, alertDays: Number(event.target.value) })} /></label><label>قاعدة العمولة<input value={form.commissionRule} onChange={(event) => setForm({ ...form, commissionRule: event.target.value })} /></label><label className="toggle-label"><input type="checkbox" checked={form.allowNegativeStock} onChange={(event) => setForm({ ...form, allowNegativeStock: event.target.checked })} /> السماح بالمخزون السالب</label><div className="modal-footer"><button className="primary-button" type="submit">حفظ الإعدادات</button><button className="secondary-button" type="button" onClick={addAccount}>إضافة حساب مساعد</button>{saved && <span className="settings-saved">تم حفظ الإعدادات</span>}</div></form></section>
+}
+
+function LoginPage({ onLogin }: { onLogin: () => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const submit = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLoading(true); setError(''); try { const result = await api('/login', { method: 'POST', body: JSON.stringify({ email, password }) }); localStorage.setItem('back_orca_token', result.token); onLogin() } catch (reason) { setError(reason instanceof Error ? reason.message : 'تعذر تسجيل الدخول') } finally { setLoading(false) } }
+  return <main className="login-shell" dir="rtl"><div className="login-card"><div className="login-brand"><div className="brand-mark">BO</div><div><strong>Back Orca</strong><span>أكاديمية السباحة</span></div></div><p className="eyebrow">نظام إدارة الأكاديمية</p><h1>تسجيل الدخول</h1><p className="login-copy">أدخل بيانات حسابك للمتابعة. ستظل الجلسة صالحة لمدة ٧ أيام على هذا الجهاز.</p><form onSubmit={submit}><label>البريد الإلكتروني<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label><label>كلمة المرور<input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} /></label>{error && <div className="login-error">{error}</div>}<button className="primary-button login-button" disabled={loading}>{loading ? 'جار التحقق...' : 'دخول'}</button></form></div></main>
+}
+
+function App() {
+  const [authenticated, setAuthenticated] = useState(() => {
+    const token = localStorage.getItem('back_orca_token')
+    if (!token) return false
+    try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload.exp * 1000 <= Date.now()) { localStorage.removeItem('back_orca_token'); return false } return true } catch { localStorage.removeItem('back_orca_token'); return false }
+  })
+  const logout = () => { localStorage.removeItem('back_orca_token'); setAuthenticated(false) }
+  return authenticated ? <DashboardApp onLogout={logout} /> : <LoginPage onLogin={() => setAuthenticated(true)} />
 }
 
 export default App
