@@ -103,6 +103,36 @@ app.get('/api/inventory', async (_req, res) => {
   const items = await InventoryItem.find().sort({ quantity: 1, name: 1 }).lean()
   res.json(items.map((item) => ({ id: item._id, sku: item.sku, name: item.name, category: item.category, quantity: item.quantity, average_cost: item.averageCost, sale_price: item.salePrice, min_quantity: item.minQuantity, stock_status: item.quantity <= item.minQuantity ? 'منخفض' : 'جيد' })))
 })
+app.get('/api/subscriptions', async (_req, res) => {
+  const rows = await Subscription.find().sort({ _id: -1 }).populate('swimmer', 'firstName fatherName familyName code').lean()
+  res.json(rows.map((row: any) => ({ id: row._id, code: row.code, swimmer: fullName(row.swimmer), package: row.package, sessions: row.sessionsTotal, startDate: row.startDate, endDate: row.endDate, price: row.price, paid: row.paid, remaining: row.price - row.paid, status: row.status })))
+})
+app.get('/api/sessions', async (_req, res) => {
+  const Session = mongoose.model('Session')
+  const rows = await Session.find().sort({ sessionDate: -1 }).populate('group', 'name').lean()
+  res.json(rows.map((row: any) => ({ id: row._id, code: row.code, group: row.group?.name ?? 'غير محددة', date: row.sessionDate, startTime: row.startTime, endTime: row.endTime, status: row.status })))
+})
+app.get('/api/payments', async (_req, res) => {
+  const rows = await Payment.find().sort({ createdAt: -1 }).populate('swimmer', 'firstName fatherName familyName').populate('parent', 'name').lean()
+  res.json(rows.map((row: any) => ({ id: row._id, code: row.code, swimmer: fullName(row.swimmer), parent: row.parent?.name, amount: row.amount, method: row.method, account: row.account, date: row.createdAt })))
+})
+app.post('/api/subscriptions', async (req, res) => {
+  try {
+    const { swimmerId, packageName, sessionsTotal, startDate, endDate, price, discount } = req.body
+    if (!Types.ObjectId.isValid(swimmerId) || !packageName || !sessionsTotal || !startDate || !endDate) return res.status(400).json({ error: 'بيانات الاشتراك الأساسية مطلوبة' })
+    const subscription = await Subscription.create({ code: await nextCode(Subscription, 'SUB'), swimmer: swimmerId, package: packageName, sessionsTotal, startDate, endDate, price: Number(price) || 0, discount: Number(discount) || 0 })
+    await Invoice.create({ code: await nextCode(Invoice, 'INV'), subscription: subscription._id, amount: Number(price) || 0, discount: Number(discount) || 0, netAmount: Math.max(0, (Number(price) || 0) - (Number(discount) || 0)) })
+    res.status(201).json({ id: subscription.code })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إنشاء الاشتراك' }) }
+})
+app.post('/api/inventory', async (req, res) => {
+  try {
+    const { sku, name, category, quantity, averageCost, salePrice, minQuantity } = req.body
+    if (!sku || !name) return res.status(400).json({ error: 'كود الصنف واسم الصنف مطلوبان' })
+    const item = await InventoryItem.create({ sku, name, category, quantity: Number(quantity) || 0, averageCost: Number(averageCost) || 0, salePrice: Number(salePrice) || 0, minQuantity: Number(minQuantity) || 0 })
+    res.status(201).json({ id: item._id })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إضافة الصنف' }) }
+})
 app.get('/api/parents', async (_req, res) => {
   const parents = await Parent.find().sort({ _id: -1 }).lean()
   const counts = await Swimmer.aggregate([{ $group: { _id: '$parent', count: { $sum: 1 } } }])
