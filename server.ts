@@ -152,6 +152,33 @@ app.get('/api/payments', async (_req, res) => {
   const rows = await Payment.find().sort({ createdAt: -1 }).populate('swimmer', 'firstName fatherName familyName').populate('parent', 'name').lean()
   res.json(rows.map((row: any) => ({ id: row._id, code: row.code, swimmer: fullName(row.swimmer), parent: row.parent?.name, amount: row.amount, method: row.method, account: row.account, date: row.createdAt })))
 })
+app.get('/api/payment-options', async (_req, res) => {
+  const rows = await Subscription.find({ status: 'نشط' }).populate('swimmer', 'firstName fatherName familyName').lean()
+  const invoices = await Invoice.find({ subscription: { $in: rows.map((row) => row._id) }, status: { $ne: 'مستردة' } }).lean()
+  const payments = await Payment.find({ invoice: { $in: invoices.map((invoice) => invoice._id) } }).lean()
+  const paid = new Map<string, number>()
+  payments.forEach((payment) => paid.set(String(payment.invoice), (paid.get(String(payment.invoice)) ?? 0) + payment.amount))
+  const invoiceMap = new Map(invoices.map((invoice) => [String(invoice.subscription), invoice]))
+  res.json(rows.map((row: any) => { const invoice: any = invoiceMap.get(String(row._id)); return { id: row._id, swimmerId: row.swimmer?._id, swimmer: fullName(row.swimmer), subscription: row.package, invoiceId: invoice?._id, remaining: invoice ? Math.max(0, invoice.netAmount - (paid.get(String(invoice._id)) ?? 0)) : 0 } }).filter((row) => row.remaining > 0))
+})
+app.post('/api/payments', async (req, res) => {
+  try {
+    const { swimmerId, subscriptionId, amount, method, account, reference } = req.body
+    if (!Types.ObjectId.isValid(swimmerId) || !Types.ObjectId.isValid(subscriptionId) || !amount || !method || !account) return res.status(400).json({ error: 'بيانات الدفعة الأساسية مطلوبة' })
+    const swimmer: any = await Swimmer.findById(swimmerId).lean()
+    const subscription: any = await Subscription.findById(subscriptionId).lean()
+    const invoice: any = await Invoice.findOne({ subscription: subscriptionId, status: { $ne: 'مستردة' } })
+    if (!swimmer || !subscription || !invoice) return res.status(404).json({ error: 'السباح أو الاشتراك أو الفاتورة غير موجودة' })
+    const paid = await Payment.aggregate([{ $match: { invoice: invoice._id } }, { $group: { _id: null, total: { $sum: '$amount' } } }])
+    const remaining = invoice.netAmount - (paid[0]?.total ?? 0)
+    if (Number(amount) <= 0 || Number(amount) > remaining) return res.status(400).json({ error: `المبلغ أكبر من المتبقي (${remaining})` })
+    const payment = await Payment.create({ code: await nextCode(Payment, 'PAY'), swimmer: swimmer._id, parent: swimmer.parent, subscription: subscription._id, invoice: invoice._id, amount: Number(amount), method, account, reference })
+    const newPaid = (paid[0]?.total ?? 0) + Number(amount)
+    await Subscription.findByIdAndUpdate(subscription._id, { paid: newPaid })
+    await Invoice.findByIdAndUpdate(invoice._id, { status: newPaid >= invoice.netAmount ? 'مدفوعة بالكامل' : 'مدفوعة جزئيًا' })
+    res.status(201).json({ id: payment.code })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر تسجيل الدفعة' }) }
+})
 app.post('/api/subscriptions', async (req, res) => {
   try {
     const { swimmerId, packageName, sessionsTotal, startDate, endDate, price, discount } = req.body
