@@ -34,6 +34,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [form, setForm] = useState<SwimmerForm>({ firstName: '', fatherName: '', familyName: '', parentId: '', birthDate: '', gender: 'ذكر', level: 'مبتدئ' })
+  const [now, setNow] = useState(() => new Date())
 
   const loadData = () => {
     api('/dashboard').then(setDashboard).catch(() => setDashboard(null))
@@ -48,6 +49,11 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
 
   useEffect(() => {
     loadData()
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(timer)
   }, [])
 
   const openAddSwimmer = () => {
@@ -104,7 +110,7 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
         <div className="sidebar-bottom"><button type="button" onClick={() => { setView('الإعدادات'); setMenuOpen(false) }}><Settings size={18} /> الإعدادات</button><button type="button" className="logout-button" onClick={onLogout}>تسجيل الخروج</button><div className="user-card"><div className="avatar">R</div><div><b>Romaysaa</b><span>مدير النظام</span></div><ChevronLeft size={15} /></div></div>
       </aside>
       <main className="main-content">
-        <header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(true)}><Menu size={22} /></button><div className="breadcrumb"><span>الأكاديمية</span><ChevronLeft size={15} /><b>{view}</b></div><div className="top-actions"><button className="icon-button notification"><Bell size={20} /><i /></button><div className="date-label">الثلاثاء، ٨ سبتمبر ٢٠٢٦</div></div></header>
+        <header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(true)}><Menu size={22} /></button><div className="breadcrumb"><span>الأكاديمية</span><ChevronLeft size={15} /><b>{view}</b></div><div className="top-actions"><button className="icon-button notification"><Bell size={20} /><i /></button><div className="date-label">{new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now)}<strong>{new Intl.DateTimeFormat('ar-EG', { hour: '2-digit', minute: '2-digit' }).format(now)}</strong></div></div></header>
         <div className="page-wrap">
           {message && <div className={`toast ${message.type}`}>{message.text}<button onClick={() => setMessage(null)}><X size={15} /></button></div>}
           <section className="page-heading"><div><p className="eyebrow">نظرة عامة على الأكاديمية</p><h1>{view === 'الرئيسية' ? 'صباح الخير، Romaysaa' : view}</h1><p className="subheading">إليك ملخص الأداء والتشغيل في أكاديمية Back Orca اليوم.</p></div><button className="primary-button" onClick={openAddSwimmer}><Plus size={18} /> إضافة سبّاح</button></section>
