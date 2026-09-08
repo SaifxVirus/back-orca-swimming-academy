@@ -16,6 +16,7 @@
   --shadow: #20303814;
   --soft-black: #20303866;
   --login-bg: radial-gradient(circle at 15% 20%, rgba(37, 99, 235, 0.10) 0, transparent 35%), #f5f7f6;
+  color-scheme: light;
 }
 :root[data-theme='dark'] {
   --ink: #edf4ff;
@@ -35,6 +36,11 @@
   --shadow: rgba(2, 6, 12, 0.7);
   --soft-black: rgba(0, 0, 0, 0.72);
   --login-bg: radial-gradient(circle at 15% 20%, rgba(59, 130, 246, 0.14) 0, transparent 35%), #04070b;
+  color-scheme: dark;
+}
+html, body, #root {
+  background: var(--bg);
+  color: var(--ink);
 }
 .app-shell { min-height: 100vh; display: flex; background: var(--bg); }
 .sidebar { width: 252px; flex: 0 0 252px; background: var(--sidebar); border-left: 1px solid var(--line); padding: 28px 17px 20px; display: flex; flex-direction: column; min-height: 100vh; }
