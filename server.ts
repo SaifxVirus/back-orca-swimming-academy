@@ -296,7 +296,7 @@ app.post('/api/parents', async (req, res) => {
     const { name, phone, email, address, notes } = req.body
     if (!name || !phone) return res.status(400).json({ error: 'اسم ولي الأمر ورقم الهاتف مطلوبان' })
     const parent = await Parent.create({ code: await nextCode(Parent, 'PAR'), name, phone, email, address, notes })
-    res.status(201).json({ id: parent.code })
+    res.status(201).json({ id: parent._id, code: parent.code })
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إضافة ولي الأمر' }) }
 })
 app.patch('/api/parents/:id', async (req, res) => {
