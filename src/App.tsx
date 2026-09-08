@@ -33,7 +33,7 @@ const api = (path: string, options: RequestInit = {}) => fetch(`${API_BASE}/api$
   return data
 })
 
-function DashboardApp({ onLogout, userName, language, onProfileSaved }: { onLogout: () => void; userName: string; language: 'ar' | 'en'; onProfileSaved: (name: string, nextLanguage: 'ar' | 'en', token: string) => void }) {
+function DashboardApp({ onLogout, userName, language, onProfileSaved, theme, onToggleTheme }: { onLogout: () => void; userName: string; language: 'ar' | 'en'; onProfileSaved: (name: string, nextLanguage: 'ar' | 'en', token: string) => void; theme: 'light' | 'dark'; onToggleTheme: () => void }) {
   const [view, setView] = useState<View>('الرئيسية')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [swimmers, setSwimmers] = useState<Array<Record<string, string | number>>>([])
@@ -138,7 +138,7 @@ function DashboardApp({ onLogout, userName, language, onProfileSaved }: { onLogo
         <div className="sidebar-bottom"><button type="button" onClick={() => { setView('الإعدادات'); setMenuOpen(false) }}><Settings size={18} /> {en ? 'Settings' : 'الإعدادات'}</button><button type="button" className="logout-button" onClick={onLogout}>{en ? 'Log out' : 'تسجيل الخروج'}</button><button type="button" className="user-card" onClick={() => { setProfileOpen(true); setMenuOpen(false) }}><div className="avatar">{userName.charAt(0).toUpperCase()}</div><div><b>{userName}</b><span>{en ? 'Profile' : 'الملف الشخصي'}</span></div><ChevronLeft size={15} /></button></div>
       </aside>
       <main className="main-content">
-        <header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(true)}><Menu size={22} /></button><div className="breadcrumb"><span>{en ? 'Academy' : 'الأكاديمية'}</span><ChevronLeft size={15} /><b>{en ? viewLabels[view] : view}</b></div><div className="top-actions"><button className="icon-button notification"><Bell size={20} /><i /></button><div className="date-label">{new Intl.DateTimeFormat(en ? 'en-US' : 'ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now)}<strong>{new Intl.DateTimeFormat(en ? 'en-US' : 'ar-EG', { hour: '2-digit', minute: '2-digit' }).format(now)}</strong></div></div></header>
+        <header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(true)}><Menu size={22} /></button><div className="breadcrumb"><span>{en ? 'Academy' : 'الأكاديمية'}</span><ChevronLeft size={15} /><b>{en ? viewLabels[view] : view}</b></div><div className="top-actions"><button type="button" className="icon-button theme-toggle" aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} onClick={onToggleTheme}>{theme === 'dark' ? '☀️' : '🌙'}</button><button className="icon-button notification"><Bell size={20} /><i /></button><div className="date-label">{new Intl.DateTimeFormat(en ? 'en-US' : 'ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now)}<strong>{new Intl.DateTimeFormat(en ? 'en-US' : 'ar-EG', { hour: '2-digit', minute: '2-digit' }).format(now)}</strong></div></div></header>
         <div className="page-wrap">
           {message && <div className={`toast ${message.type}`}>{message.text}<button onClick={() => setMessage(null)}><X size={15} /></button></div>}
           <section className="page-heading"><div><p className="eyebrow">{en ? 'Academy overview' : 'نظرة عامة على الأكاديمية'}</p><h1>{view === 'الرئيسية' ? (en ? `Good morning, ${userName}` : `صباح الخير، ${userName}`) : viewLabels[view]}</h1><p className="subheading">{en ? 'Your academy performance and operations at a glance.' : 'إليك ملخص الأداء والتشغيل في أكاديمية Back Orca اليوم.'}</p></div><button className="primary-button" onClick={openAddSwimmer}><Plus size={18} /> {en ? 'Add swimmer' : 'إضافة سبّاح'}</button></section>
@@ -261,16 +261,26 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
 }
 
 function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const stored = localStorage.getItem('back_orca_theme')
+    if (stored === 'light' || stored === 'dark') return stored
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
   const [userName, setUserName] = useState(() => {
     const token = localStorage.getItem('back_orca_token')
     if (!token) return ''
     try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload.exp * 1000 <= Date.now()) { localStorage.removeItem('back_orca_token'); return '' } return displayUserName(payload.name ?? '') } catch { localStorage.removeItem('back_orca_token'); return '' }
   })
   const [language, setLanguage] = useState<'ar' | 'en'>(() => { const token = localStorage.getItem('back_orca_token'); try { return JSON.parse(atob(token?.split('.')[1] ?? '')).language === 'en' ? 'en' : 'ar' } catch { return 'ar' } })
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('back_orca_theme', theme)
+  }, [theme])
   const logout = () => { localStorage.removeItem('back_orca_token'); setUserName('') }
   const login = () => { const token = localStorage.getItem('back_orca_token'); if (!token) return; try { const payload = JSON.parse(atob(token.split('.')[1])); setUserName(displayUserName(payload.name ?? 'مستخدم')); setLanguage(payload.language === 'en' ? 'en' : 'ar') } catch { setUserName('مستخدم') } }
   const profileSaved = (name: string, nextLanguage: 'ar' | 'en', token: string) => { localStorage.setItem('back_orca_token', token); setUserName(displayUserName(name)); setLanguage(nextLanguage) }
-  return userName ? <DashboardApp onLogout={logout} userName={userName} language={language} onProfileSaved={profileSaved} /> : <LoginPage onLogin={login} />
+  const toggleTheme = () => setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+  return userName ? <DashboardApp onLogout={logout} userName={userName} language={language} onProfileSaved={profileSaved} theme={theme} onToggleTheme={toggleTheme} /> : <LoginPage onLogin={login} />
 }
 
 export default App
