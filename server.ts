@@ -72,9 +72,9 @@ async function seedDatabase() {
 }
 
 async function seedAdmin() {
-  if (await User.exists({})) return
   const email = process.env.ADMIN_EMAIL ?? 'admin@backorca.local'
   const password = process.env.ADMIN_PASSWORD ?? 'ChangeMe123!'
+  if (await User.exists({ email })) return
   await User.create({ name: 'مدير النظام', email, passwordHash: await bcrypt.hash(password, 12), role: 'مدير' })
   console.log(`Admin account created for ${email}. Set ADMIN_PASSWORD in production.`)
 }
