@@ -4,8 +4,8 @@ import { Activity, Bell, Boxes, CalendarDays, ChevronLeft, CircleDollarSign, Cli
 import './App.css'
 
 type Dashboard = { metrics: { swimmerCount: number; subscriptionCount: number; groupCount: number; coachCount: number; collected: number; outstanding: number; lowStock: number }; recentSwimmers: Array<Record<string, string | number>>; alerts: Array<Record<string, string | number>> }
-type View = 'الرئيسية' | 'السباحون' | 'الاشتراكات' | 'الحضور' | 'المدفوعات' | 'المخزون'
-type Parent = { id: string; name: string; phone: string }
+type View = 'الرئيسية' | 'السباحون' | 'أولياء الأمور' | 'الاشتراكات' | 'الحضور' | 'المدفوعات' | 'المخزون'
+type Parent = { id: string; name: string; phone: string; email?: string; swimmer_count?: number }
 type SwimmerForm = { firstName: string; fatherName: string; familyName: string; parentId: string; birthDate: string; gender: string; level: string }
 
 const money = (value: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(value)
@@ -87,7 +87,7 @@ function App() {
   }
 
   const nav = [
-    { label: 'الرئيسية', icon: LayoutDashboard }, { label: 'السباحون', icon: Users }, { label: 'الاشتراكات', icon: ClipboardCheck },
+    { label: 'الرئيسية', icon: LayoutDashboard }, { label: 'السباحون', icon: Users }, { label: 'أولياء الأمور', icon: Users }, { label: 'الاشتراكات', icon: ClipboardCheck },
     { label: 'الحضور', icon: CalendarDays }, { label: 'المدفوعات', icon: CircleDollarSign }, { label: 'المخزون', icon: Boxes },
   ] as const
   const shownSwimmers = swimmers.filter((swimmer) => String(swimmer.full_name).includes(search) || String(swimmer.swimmer_code).includes(search))
@@ -116,6 +116,7 @@ function App() {
             <section className="panel table-panel"><div className="panel-heading"><div><h2>آخر السباحين المسجلين</h2><p>بيانات محدثة لحظيًا من قاعدة البيانات</p></div><button className="text-button" onClick={() => setView('السباحون')}>عرض جميع السباحين <ChevronLeft size={15} /></button></div><SwimmerTable swimmers={dashboard?.recentSwimmers ?? []} /></section>
           </>}
           {view === 'السباحون' && <section className="panel table-panel full-panel"><div className="panel-heading"><div><h2>قاعدة بيانات السباحين</h2><p>كل سبّاح يُسجل مرة واحدة ويُستخدم في بقية النظام.</p></div><div className="panel-actions"><label className="search"><Search size={17} /><input placeholder="ابحث بالاسم أو الرقم" value={search} onChange={(event) => setSearch(event.target.value)} /></label><button className="primary-button compact" onClick={openAddSwimmer}><Plus size={16} /> إضافة سبّاح</button></div></div><SwimmerTable swimmers={shownSwimmers} onEdit={openEditSwimmer} onDelete={deleteSwimmer} /></section>}
+          {view === 'أولياء الأمور' && <ParentPage parents={parents} onSaved={loadData} />}
           {view === 'المخزون' && <section className="panel table-panel full-panel"><div className="panel-heading"><div><h2>المخزون</h2><p>الرصيد الحالي والتنبيهات حسب حد إعادة الطلب.</p></div><button className="primary-button"><Plus size={18} /> إضافة صنف</button></div><InventoryTable inventory={inventory} /></section>}
           {view === 'الاشتراكات' && <OperationsPage title="الاشتراكات" kind="subscriptions" rows={subscriptions} swimmers={swimmers} onSaved={loadData} />}
           {view === 'الحضور' && <OperationsPage title="الحضور والجلسات" kind="sessions" rows={sessions} swimmers={swimmers} onSaved={loadData} />}
@@ -130,6 +131,17 @@ function App() {
 function Metric({ icon: Icon, label, value, trend, tone }: { icon: typeof Users; label: string; value: string | number; trend: string; tone: string }) { return <article className="metric-card"><div className={`metric-icon ${tone}`}><Icon size={21} /></div><div className="metric-copy"><span>{label}</span><strong>{value}</strong><small className={tone === 'ink' ? 'neutral' : ''}>{trend}</small></div><div className="sparkline"><span /><span /><span /><span /><span /><span /><span /></div></article> }
 function SwimmerTable({ swimmers, onEdit, onDelete }: { swimmers: Array<Record<string, string | number>>; onEdit?: (swimmer: Record<string, string | number>) => void; onDelete?: (swimmer: Record<string, string | number>) => void }) { return <div className="table-scroll"><table><thead><tr><th>السبّاح</th><th>ولي الأمر</th><th>المجموعة</th><th>المدرب</th><th>المستوى</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>{swimmers.map((swimmer) => <tr key={String(swimmer.id)}><td><div className="person"><div className="table-avatar">{String(swimmer.full_name ?? '').charAt(0)}</div><div><b>{swimmer.full_name}</b><span>{swimmer.swimmer_code}</span></div></div></td><td>{swimmer.parent_name}<small className="muted">{swimmer.parent_phone}</small></td><td>{swimmer.group_name}</td><td>{swimmer.coach_name}</td><td><span className="level">{swimmer.level}</span></td><td><span className="badge success">نشط</span></td><td>{onEdit && <button className="table-action" onClick={() => onEdit(swimmer)}>تعديل</button>}{onDelete && <button className="table-action danger" onClick={() => onDelete(swimmer)}>حذف</button>}</td></tr>)}</tbody></table>{swimmers.length === 0 && <div className="empty">لا توجد بيانات مطابقة</div>}</div> }
 function InventoryTable({ inventory }: { inventory: Array<Record<string, string | number>> }) { return <div className="table-scroll"><table><thead><tr><th>الصنف</th><th>الفئة</th><th>الرصيد</th><th>تكلفة الوحدة</th><th>سعر البيع</th><th>الحالة</th></tr></thead><tbody>{inventory.map((item) => <tr key={String(item.id)}><td><div className="person"><div className="table-avatar box"><Package size={16} /></div><div><b>{item.name}</b><span>{item.sku}</span></div></div></td><td>{item.category}</td><td>{item.quantity}</td><td>{money(Number(item.average_cost))}</td><td>{money(Number(item.sale_price))}</td><td><span className={`badge ${item.stock_status === 'منخفض' ? 'warning' : 'success'}`}>{item.stock_status}</span></td></tr>)}</tbody></table></div> }
+
+function ParentPage({ parents, onSaved }: { parents: Parent[]; onSaved: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' })
+  const save = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setSaving(true)
+    try { await api('/parents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); setOpen(false); setForm({ name: '', phone: '', email: '', address: '', notes: '' }); onSaved() } catch (error) { window.alert(error instanceof Error ? error.message : 'تعذر الحفظ') } finally { setSaving(false) }
+  }
+  return <section className="panel table-panel full-panel"><div className="panel-heading"><div><h2>قاعدة بيانات أولياء الأمور</h2><p>ولي الأمر الواحد يمكن أن يرتبط بعدة سباحين.</p></div><button className="primary-button compact" onClick={() => setOpen(true)}><Plus size={16} /> إضافة ولي أمر</button></div><div className="table-scroll"><table><thead><tr><th>الكود</th><th>الاسم</th><th>الهاتف</th><th>البريد الإلكتروني</th><th>عدد السباحين</th></tr></thead><tbody>{parents.map((parent) => <tr key={parent.id}><td>{parent.id}</td><td><b>{parent.name}</b></td><td>{parent.phone}</td><td>{parent.email || 'غير مضاف'}</td><td><span className="badge success">{parent.swimmer_count ?? 0} سباح</span></td></tr>)}</tbody></table>{parents.length === 0 && <div className="empty">لا توجد بيانات لأولياء الأمور</div>}</div>{open && <div className="modal-backdrop"><form className="modal" onSubmit={save}><div className="modal-heading"><div><h2>إضافة ولي أمر</h2><p>سيظهر ولي الأمر مباشرة عند إضافة سباح.</p></div><button type="button" className="modal-close" onClick={() => setOpen(false)}><X size={18} /></button></div><div className="form-grid"><label>الاسم<input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>الهاتف<input required value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label><label>البريد الإلكتروني<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label>العنوان<input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} /></label></div><div className="modal-footer"><button type="button" className="secondary-button" onClick={() => setOpen(false)}>إلغاء</button><button type="submit" className="primary-button" disabled={saving}>{saving ? 'جار الحفظ...' : 'حفظ ولي الأمر'}</button></div></form></div>}</section>
+}
 
 function OperationsPage({ title, kind, rows, swimmers, onSaved }: { title: string; kind: 'subscriptions' | 'sessions' | 'payments'; rows: Array<Record<string, string | number>>; swimmers: Array<Record<string, string | number>>; onSaved: () => void }) {
   const [open, setOpen] = useState(false)

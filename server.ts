@@ -139,6 +139,29 @@ app.get('/api/parents', async (_req, res) => {
   const countMap = new Map(counts.map((item) => [String(item._id), item.count]))
   res.json(parents.map((parent) => ({ id: parent._id, parent_code: parent.code, name: parent.name, phone: parent.phone, email: parent.email, swimmer_count: countMap.get(String(parent._id)) ?? 0 })))
 })
+app.post('/api/parents', async (req, res) => {
+  try {
+    const { name, phone, email, address, notes } = req.body
+    if (!name || !phone) return res.status(400).json({ error: 'اسم ولي الأمر ورقم الهاتف مطلوبان' })
+    const parent = await Parent.create({ code: await nextCode(Parent, 'PAR'), name, phone, email, address, notes })
+    res.status(201).json({ id: parent.code })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إضافة ولي الأمر' }) }
+})
+app.patch('/api/parents/:id', async (req, res) => {
+  try {
+    const parent = await Parent.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
+    if (!parent) return res.status(404).json({ error: 'ولي الأمر غير موجود' })
+    res.json({ id: parent.code })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر تعديل ولي الأمر' }) }
+})
+app.delete('/api/parents/:id', async (req, res) => {
+  try {
+    if (await Swimmer.exists({ parent: req.params.id })) return res.status(409).json({ error: 'لا يمكن حذف ولي أمر مرتبط بسباحين' })
+    const parent = await Parent.findByIdAndDelete(req.params.id)
+    if (!parent) return res.status(404).json({ error: 'ولي الأمر غير موجود' })
+    res.json({ ok: true })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر حذف ولي الأمر' }) }
+})
 
 if (process.env.NODE_ENV === 'production') { app.use(express.static(publicDir)); app.use((_req, res) => res.sendFile(path.join(publicDir, 'index.html'))) }
 
