@@ -82,6 +82,23 @@ app.post('/api/swimmers', async (req, res) => {
     res.status(201).json({ id: swimmer.code })
   } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إنشاء السباح' }) }
 })
+app.patch('/api/swimmers/:id', async (req, res) => {
+  try {
+    const { firstName, fatherName, familyName, parentId, birthDate, gender, level } = req.body
+    if (!firstName || !parentId || !Types.ObjectId.isValid(parentId)) return res.status(400).json({ error: 'الاسم الأول وولي الأمر مطلوبان' })
+    const swimmer = await Swimmer.findByIdAndUpdate(req.params.id, { firstName, fatherName, familyName, parent: parentId, birthDate, gender, level }, { new: true, runValidators: true })
+    if (!swimmer) return res.status(404).json({ error: 'السباح غير موجود' })
+    res.json({ id: swimmer.code })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر تعديل السباح' }) }
+})
+app.delete('/api/swimmers/:id', async (req, res) => {
+  try {
+    if (await Subscription.exists({ swimmer: req.params.id })) return res.status(409).json({ error: 'لا يمكن حذف سباح لديه اشتراك مرتبط. غيّر حالته إلى غير نشط بدلًا من ذلك.' })
+    const swimmer = await Swimmer.findByIdAndDelete(req.params.id)
+    if (!swimmer) return res.status(404).json({ error: 'السباح غير موجود' })
+    res.json({ ok: true })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر حذف السباح' }) }
+})
 app.get('/api/inventory', async (_req, res) => {
   const items = await InventoryItem.find().sort({ quantity: 1, name: 1 }).lean()
   res.json(items.map((item) => ({ id: item._id, sku: item.sku, name: item.name, category: item.category, quantity: item.quantity, average_cost: item.averageCost, sale_price: item.salePrice, min_quantity: item.minQuantity, stock_status: item.quantity <= item.minQuantity ? 'منخفض' : 'جيد' })))
