@@ -19,7 +19,8 @@ const groupSchema = new Schema({ code: { type: String, unique: true }, name: { t
 const swimmerSchema = new Schema({ code: { type: String, unique: true }, firstName: { type: String, required: true }, fatherName: String, familyName: String, parent: { type: Schema.Types.ObjectId, ref: 'Parent', required: true }, birthDate: String, gender: String, registrationDate: { type: String, required: true }, status: { type: String, default: 'نشط' }, level: String, group: { type: Schema.Types.ObjectId, ref: 'Group' }, notes: String, emergency: String })
 const subscriptionSchema = new Schema({ code: { type: String, unique: true }, swimmer: { type: Schema.Types.ObjectId, ref: 'Swimmer', required: true }, package: { type: String, required: true }, sessionsTotal: { type: Number, required: true, min: 1 }, startDate: { type: String, required: true }, endDate: { type: String, required: true }, price: { type: Number, required: true, min: 0 }, discount: { type: Number, default: 0, min: 0 }, paid: { type: Number, default: 0, min: 0 }, freezeStart: String, freezeEnd: String, status: { type: String, default: 'نشط' } })
 const invoiceSchema = new Schema({ code: { type: String, unique: true }, subscription: { type: Schema.Types.ObjectId, ref: 'Subscription', required: true }, amount: { type: Number, required: true, min: 0 }, discount: { type: Number, default: 0, min: 0 }, netAmount: { type: Number, required: true, min: 0 }, status: { type: String, default: 'غير مدفوعة' } }, { timestamps: true })
-const paymentSchema = new Schema({ code: { type: String, unique: true }, swimmer: { type: Schema.Types.ObjectId, ref: 'Swimmer', required: true }, parent: { type: Schema.Types.ObjectId, ref: 'Parent', required: true }, subscription: { type: Schema.Types.ObjectId, ref: 'Subscription', required: true }, invoice: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true }, amount: { type: Number, required: true, min: 0.01 }, method: { type: String, required: true }, account: { type: String, required: true }, reference: String }, { timestamps: true })
+const paymentSchema = new Schema({ code: { type: String, unique: true }, swimmer: { type: Schema.Types.ObjectId, ref: 'Swimmer' }, parent: { type: Schema.Types.ObjectId, ref: 'Parent' }, subscription: { type: Schema.Types.ObjectId, ref: 'Subscription' }, invoice: { type: Schema.Types.ObjectId, ref: 'Invoice' }, items: [{ item: { type: Schema.Types.ObjectId, ref: 'InventoryItem', required: true }, name: String, quantity: { type: Number, min: 1 }, unitPrice: { type: Number, min: 0 } }], amount: { type: Number, required: true, min: 0.01 }, method: { type: String, required: true }, account: { type: String, required: true }, reference: String }, { timestamps: true })
+const settingsSchema = new Schema({ academyName: { type: String, default: 'Back Orca Swimming Academy' }, currency: { type: String, default: 'جنيه مصري' }, alertDays: { type: Number, default: 7 }, allowNegativeStock: { type: Boolean, default: false }, commissionRule: { type: String, default: 'إيرادات الاشتراكات المنسوبة للمدرب' } })
 const sessionSchema = new Schema({ code: { type: String, unique: true }, group: { type: Schema.Types.ObjectId, ref: 'Group', required: true }, sessionDate: { type: String, required: true }, startTime: { type: String, required: true }, endTime: { type: String, required: true }, status: { type: String, default: 'مجدولة' } })
 const attendanceSchema = new Schema({ swimmer: { type: Schema.Types.ObjectId, ref: 'Swimmer', required: true }, session: { type: Schema.Types.ObjectId, ref: 'Session', required: true }, subscription: { type: Schema.Types.ObjectId, ref: 'Subscription', required: true }, status: { type: String, required: true } })
 attendanceSchema.index({ swimmer: 1, session: 1 }, { unique: true })
@@ -33,6 +34,7 @@ const Swimmer = mongoose.model('Swimmer', swimmerSchema)
 const Subscription = mongoose.model('Subscription', subscriptionSchema)
 const Invoice = mongoose.model('Invoice', invoiceSchema)
 const Payment = mongoose.model('Payment', paymentSchema)
+const Settings = mongoose.model('Settings', settingsSchema)
 mongoose.model('Session', sessionSchema)
 mongoose.model('Attendance', attendanceSchema)
 const InventoryItem = mongoose.model('InventoryItem', inventorySchema)
@@ -56,6 +58,10 @@ async function seedDatabase() {
 }
 
 app.get('/api/health', (_req, res) => res.json({ ok: mongoose.connection.readyState === 1, service: 'Back Orca API', database: 'MongoDB' }))
+app.get('/api/settings', async (_req, res) => res.json(await Settings.findOne().lean() ?? await Settings.create({})))
+app.put('/api/settings', async (req, res) => {
+  try { res.json(await Settings.findOneAndUpdate({}, req.body, { new: true, upsert: true, runValidators: true })) } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر حفظ الإعدادات' }) }
+})
 app.get('/api/dashboard', async (_req, res) => {
   const [swimmerCount, subscriptionCount, groupCount, coachCount, lowStock, recentSwimmers, alerts, collected, invoices, payments] = await Promise.all([
     Swimmer.countDocuments({ status: 'نشط' }), Subscription.countDocuments({ status: 'نشط' }), Group.countDocuments({ status: 'نشطة' }), Coach.countDocuments({ status: 'نشط' }), InventoryItem.countDocuments({ $expr: { $lte: ['$quantity', '$minQuantity'] } }),
@@ -150,8 +156,9 @@ app.post('/api/sessions/:sessionId/attendance', async (req, res) => {
 })
 app.get('/api/payments', async (_req, res) => {
   const rows = await Payment.find().sort({ createdAt: -1 }).populate('swimmer', 'firstName fatherName familyName').populate('parent', 'name').lean()
-  res.json(rows.map((row: any) => ({ id: row._id, code: row.code, swimmer: fullName(row.swimmer), parent: row.parent?.name, amount: row.amount, method: row.method, account: row.account, date: row.createdAt })))
+  res.json(rows.map((row: any) => ({ id: row._id, code: row.code, swimmer: fullName(row.swimmer) || 'بيع مخزون', parent: row.parent?.name || 'بيع مباشر', items: row.items?.map((item: any) => `${item.name} × ${item.quantity}`).join('، ') || '', amount: row.amount, method: row.method, account: row.account, date: row.createdAt })))
 })
+app.get('/api/payment-inventory', async (_req, res) => res.json(await InventoryItem.find({ quantity: { $gt: 0 } }).sort({ name: 1 }).lean()))
 app.get('/api/payment-options', async (_req, res) => {
   const rows = await Subscription.find({ status: 'نشط' }).populate('swimmer', 'firstName fatherName familyName').lean()
   const invoices = await Invoice.find({ subscription: { $in: rows.map((row) => row._id) }, status: { $ne: 'مستردة' } }).lean()
@@ -163,8 +170,26 @@ app.get('/api/payment-options', async (_req, res) => {
 })
 app.post('/api/payments', async (req, res) => {
   try {
-    const { swimmerId, subscriptionId, amount, method, account, reference } = req.body
-    if (!Types.ObjectId.isValid(swimmerId) || !Types.ObjectId.isValid(subscriptionId) || !amount || !method || !account) return res.status(400).json({ error: 'بيانات الدفعة الأساسية مطلوبة' })
+    const { swimmerId, subscriptionId, amount, method, account, reference, items = [] } = req.body
+    if (!amount || !method || !account || (!items.length && (!Types.ObjectId.isValid(swimmerId) || !Types.ObjectId.isValid(subscriptionId)))) return res.status(400).json({ error: 'بيانات الدفعة الأساسية مطلوبة' })
+    if (items.length) {
+      const normalizedItems = []
+      let calculatedTotal = 0
+      for (const line of items) {
+        if (!Types.ObjectId.isValid(line.itemId) || Number(line.quantity) < 1) return res.status(400).json({ error: 'بيانات صنف المخزون غير صحيحة' })
+        const item: any = await InventoryItem.findById(line.itemId)
+        if (!item || item.quantity < Number(line.quantity)) return res.status(400).json({ error: `الرصيد غير كاف للصنف: ${item?.name ?? 'غير موجود'}` })
+        normalizedItems.push({ item: item._id, name: item.name, quantity: Number(line.quantity), unitPrice: item.salePrice })
+        calculatedTotal += item.salePrice * Number(line.quantity)
+      }
+      if (Number(amount) !== calculatedTotal) return res.status(400).json({ error: `إجمالي البيع يجب أن يساوي ${calculatedTotal}` })
+      const payment = await Payment.create({ code: await nextCode(Payment, 'PAY'), items: normalizedItems, amount: calculatedTotal, method, account, reference })
+      for (const line of normalizedItems) {
+        await InventoryItem.findByIdAndUpdate(line.item, { $inc: { quantity: -line.quantity } })
+        await mongoose.model('StockMovement').create({ item: line.item, movementType: 'بيع', quantity: -line.quantity, unitCost: line.unitPrice, reference: payment.code })
+      }
+      return res.status(201).json({ id: payment.code })
+    }
     const swimmer: any = await Swimmer.findById(swimmerId).lean()
     const subscription: any = await Subscription.findById(subscriptionId).lean()
     const invoice: any = await Invoice.findOne({ subscription: subscriptionId, status: { $ne: 'مستردة' } })
