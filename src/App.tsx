@@ -9,6 +9,18 @@ type Parent = { id: string; name: string; phone: string; email?: string; swimmer
 type Group = { id: string; name: string; capacity: number }
 type SwimmerForm = { firstName: string; fatherName: string; familyName: string; parentId: string; birthDate: string; gender: string; level: string }
 
+const arabicEnglishPairs: Array<[string, string]> = [
+  ['مركز الإعدادات', 'Settings center'], ['إعدادات الأكاديمية والتنبيهات والمخزون.', 'Academy, alerts, and inventory settings.'], ['اسم الأكاديمية', 'Academy name'], ['جنيه مصري', 'Egyptian Pound'], ['دولار أمريكي', 'US Dollar'], ['التنبيه قبل انتهاء الاشتراك بأيام', 'Subscription expiry alert days'], ['قاعدة العمولة', 'Commission rule'], ['السماح بالمخزون السالب', 'Allow negative stock'], ['حفظ الإعدادات', 'Save settings'], ['إضافة حساب مساعد', 'Add staff account'], ['الملف الشخصي', 'Profile'], ['الاسم الأول', 'First name'], ['اسم الأب', 'Father name'], ['اسم العائلة', 'Family name'], ['ولي الأمر', 'Parent'], ['اختر ولي الأمر', 'Choose parent'], ['تاريخ الميلاد', 'Birth date'], ['النوع', 'Gender'], ['ذكر', 'Male'], ['أنثى', 'Female'], ['المستوى', 'Level'], ['مبتدئ', 'Beginner'], ['متوسط', 'Intermediate'], ['متقدم', 'Advanced'], ['حفظ السباح', 'Save swimmer'], ['إضافة سبّاح', 'Add swimmer'], ['تعديل بيانات السباح', 'Edit swimmer'], ['حذف', 'Delete'], ['تعديل', 'Edit'], ['إلغاء', 'Cancel'], ['حفظ', 'Save'], ['جار الحفظ...', 'Saving...'], ['قاعدة بيانات السباحين', 'Swimmer database'], ['قاعدة بيانات أولياء الأمور', 'Parents database'], ['ولي الأمر الواحد يمكن أن يرتبط بعدة سباحين.', 'One parent can be linked to multiple swimmers.'], ['إضافة ولي أمر', 'Add parent'], ['عدد السباحين', 'Swimmer count'], ['غير مضاف', 'Not added'], ['الاشتراكات', 'Subscriptions'], ['إضافة اشتراك', 'Add subscription'], ['الباقة', 'Package'], ['عدد الحصص', 'Sessions count'], ['السعر', 'Price'], ['الخصم', 'Discount'], ['تاريخ البداية', 'Start date'], ['تاريخ النهاية', 'End date'], ['حفظ الاشتراك', 'Save subscription'], ['الجلسات والحضور', 'Sessions and attendance'], ['اختر الجلسة', 'Choose session'], ['إنشاء جلسة', 'Create session'], ['إنشاء جلسة جديدة', 'Create new session'], ['حاضر', 'Present'], ['غائب', 'Absent'], ['غياب بعذر', 'Excused absence'], ['لم يسجل', 'Not recorded'], ['تسجيل الحضور', 'Record attendance'], ['المدفوعات', 'Payments'], ['تسجيل دفعة', 'Record payment'], ['تحصيل اشتراك', 'Subscription collection'], ['بيع مخزون', 'Inventory sale'], ['اختر صنفًا', 'Choose item'], ['الكمية', 'Quantity'], ['إضافة الصنف', 'Add item'], ['الإجمالي', 'Total'], ['طريقة الدفع', 'Payment method'], ['الحساب المالي', 'Financial account'], ['نقدي', 'Cash'], ['بنك', 'Bank'], ['بطاقة', 'Card'], ['محفظة إلكترونية', 'E-wallet'], ['الخزينة', 'Cashbox'], ['المحفظة الإلكترونية', 'E-wallet'], ['رقم المرجع', 'Reference number'], ['حفظ الدفعة', 'Save payment'], ['المخزون', 'Inventory'], ['إضافة صنف', 'Add item'], ['تعديل الصنف', 'Edit item'], ['إضافة صنف', 'Add item'], ['كود الصنف', 'Item code'], ['اسم الصنف', 'Item name'], ['الفئة', 'Category'], ['الرصيد', 'Quantity on hand'], ['تكلفة الوحدة', 'Unit cost'], ['سعر البيع', 'Sale price'], ['حد إعادة الطلب', 'Reorder level'], ['حفظ الصنف', 'Save item'], ['جيد', 'Good'], ['منخفض', 'Low'], ['الإعدادات', 'Settings'], ['تسجيل الخروج', 'Log out'], ['لا توجد سجلات بعد', 'No records yet'], ['لا توجد دفعات مسجلة', 'No payments recorded'], ['لا توجد أصناف', 'No inventory items'], ['لا توجد بيانات مطابقة', 'No matching data'], ['لا توجد تنبيهات عاجلة', 'No urgent alerts'], ['مستخدم النظام', 'System user'], ['اشتراك نشط', 'Active subscription'], ['لا يوجد اشتراك', 'No active subscription'], ['حسابات أولياء الأمور', 'Parent accounts']
+]
+
+function translateArabicDom() {
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  const nodes: Text[] = []
+  while (walker.nextNode()) nodes.push(walker.currentNode as Text)
+  nodes.forEach((node) => { if (node.parentElement?.tagName === 'SCRIPT' || node.parentElement?.tagName === 'STYLE') return; let value = node.nodeValue ?? ''; arabicEnglishPairs.forEach(([arabic, english]) => { value = value.split(arabic).join(english) }); if (value !== node.nodeValue) node.nodeValue = value })
+  document.querySelectorAll<HTMLElement>('[placeholder]').forEach((element) => { let value = element.getAttribute('placeholder') ?? ''; arabicEnglishPairs.forEach(([arabic, english]) => { value = value.split(arabic).join(english) }); if (value !== element.getAttribute('placeholder')) element.setAttribute('placeholder', value) })
+}
+
 const money = (value: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(value)
 const displayUserName = (value: string) => {
   if (!/[ÙØÃ]/.test(value)) return value
@@ -60,6 +72,14 @@ function DashboardApp({ onLogout, userName, language, onProfileSaved }: { onLogo
     const timer = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
+
+  useEffect(() => {
+    if (language !== 'en') return
+    translateArabicDom()
+    const observer = new MutationObserver(() => translateArabicDom())
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [language])
 
   const openAddSwimmer = () => {
     setEditingId(null)
