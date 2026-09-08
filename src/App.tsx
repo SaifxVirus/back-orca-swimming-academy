@@ -10,6 +10,10 @@ type Group = { id: string; name: string; capacity: number }
 type SwimmerForm = { firstName: string; fatherName: string; familyName: string; parentId: string; birthDate: string; gender: string; level: string }
 
 const money = (value: number) => new Intl.NumberFormat('ar-EG', { style: 'currency', currency: 'EGP', maximumFractionDigits: 0 }).format(value)
+const displayUserName = (value: string) => {
+  if (!/[ÙØÃ]/.test(value)) return value
+  try { return decodeURIComponent(escape(value)) } catch { return value }
+}
 const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : ''
 const api = (path: string, options: RequestInit = {}) => fetch(`${API_BASE}/api${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(options.headers ?? {}), ...(localStorage.getItem('back_orca_token') ? { Authorization: `Bearer ${localStorage.getItem('back_orca_token')}` } : {}) } }).then(async (response) => {
   const data = await response.json()
@@ -226,10 +230,10 @@ function App() {
   const [userName, setUserName] = useState(() => {
     const token = localStorage.getItem('back_orca_token')
     if (!token) return ''
-    try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload.exp * 1000 <= Date.now()) { localStorage.removeItem('back_orca_token'); return '' } return payload.name ?? '' } catch { localStorage.removeItem('back_orca_token'); return '' }
+    try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload.exp * 1000 <= Date.now()) { localStorage.removeItem('back_orca_token'); return '' } return displayUserName(payload.name ?? '') } catch { localStorage.removeItem('back_orca_token'); return '' }
   })
   const logout = () => { localStorage.removeItem('back_orca_token'); setUserName('') }
-  const login = () => { const token = localStorage.getItem('back_orca_token'); if (!token) return; try { setUserName(JSON.parse(atob(token.split('.')[1])).name ?? 'مستخدم') } catch { setUserName('مستخدم') } }
+  const login = () => { const token = localStorage.getItem('back_orca_token'); if (!token) return; try { setUserName(displayUserName(JSON.parse(atob(token.split('.')[1])).name ?? 'مستخدم')) } catch { setUserName('مستخدم') } }
   return userName ? <DashboardApp onLogout={logout} userName={userName} /> : <LoginPage onLogin={login} />
 }
 
