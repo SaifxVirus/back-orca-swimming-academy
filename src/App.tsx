@@ -17,7 +17,7 @@ const api = (path: string, options: RequestInit = {}) => fetch(`${API_BASE}/api$
   return data
 })
 
-function DashboardApp({ onLogout }: { onLogout: () => void }) {
+function DashboardApp({ onLogout, userName }: { onLogout: () => void; userName: string }) {
   const [view, setView] = useState<View>('الرئيسية')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [swimmers, setSwimmers] = useState<Array<Record<string, string | number>>>([])
@@ -107,13 +107,13 @@ function DashboardApp({ onLogout }: { onLogout: () => void }) {
         <div className="brand"><div className="brand-mark">BO</div><div><strong>Back Orca</strong><span>أكاديمية السباحة</span></div><button className="close-menu" onClick={() => setMenuOpen(false)}><X size={18} /></button></div>
         <div className="workspace"><span className="status-dot" /> النظام يعمل بشكل طبيعي</div>
         <nav>{nav.map(({ label, icon: Icon }) => <button key={label} className={view === label ? 'active' : ''} onClick={() => { setView(label); setMenuOpen(false) }}><Icon size={19} /><span>{label}</span>{label === 'الرئيسية' && <span className="nav-arrow"><ChevronLeft size={15} /></span>}</button>)}</nav>
-        <div className="sidebar-bottom"><button type="button" onClick={() => { setView('الإعدادات'); setMenuOpen(false) }}><Settings size={18} /> الإعدادات</button><button type="button" className="logout-button" onClick={onLogout}>تسجيل الخروج</button><div className="user-card"><div className="avatar">R</div><div><b>Romaysaa</b><span>مدير النظام</span></div><ChevronLeft size={15} /></div></div>
+        <div className="sidebar-bottom"><button type="button" onClick={() => { setView('الإعدادات'); setMenuOpen(false) }}><Settings size={18} /> الإعدادات</button><button type="button" className="logout-button" onClick={onLogout}>تسجيل الخروج</button><div className="user-card"><div className="avatar">{userName.charAt(0).toUpperCase()}</div><div><b>{userName}</b><span>مستخدم النظام</span></div><ChevronLeft size={15} /></div></div>
       </aside>
       <main className="main-content">
         <header className="topbar"><button className="menu-toggle" onClick={() => setMenuOpen(true)}><Menu size={22} /></button><div className="breadcrumb"><span>الأكاديمية</span><ChevronLeft size={15} /><b>{view}</b></div><div className="top-actions"><button className="icon-button notification"><Bell size={20} /><i /></button><div className="date-label">{new Intl.DateTimeFormat('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(now)}<strong>{new Intl.DateTimeFormat('ar-EG', { hour: '2-digit', minute: '2-digit' }).format(now)}</strong></div></div></header>
         <div className="page-wrap">
           {message && <div className={`toast ${message.type}`}>{message.text}<button onClick={() => setMessage(null)}><X size={15} /></button></div>}
-          <section className="page-heading"><div><p className="eyebrow">نظرة عامة على الأكاديمية</p><h1>{view === 'الرئيسية' ? 'صباح الخير، Romaysaa' : view}</h1><p className="subheading">إليك ملخص الأداء والتشغيل في أكاديمية Back Orca اليوم.</p></div><button className="primary-button" onClick={openAddSwimmer}><Plus size={18} /> إضافة سبّاح</button></section>
+          <section className="page-heading"><div><p className="eyebrow">نظرة عامة على الأكاديمية</p><h1>{view === 'الرئيسية' ? `صباح الخير، ${userName}` : view}</h1><p className="subheading">إليك ملخص الأداء والتشغيل في أكاديمية Back Orca اليوم.</p></div><button className="primary-button" onClick={openAddSwimmer}><Plus size={18} /> إضافة سبّاح</button></section>
           {view === 'الرئيسية' && <>
             <section className="metric-grid">
               <Metric icon={Users} label="السباحون النشطون" value={dashboard?.metrics.swimmerCount ?? 0} trend="+12%" tone="teal" />
@@ -223,13 +223,14 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
 }
 
 function App() {
-  const [authenticated, setAuthenticated] = useState(() => {
+  const [userName, setUserName] = useState(() => {
     const token = localStorage.getItem('back_orca_token')
-    if (!token) return false
-    try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload.exp * 1000 <= Date.now()) { localStorage.removeItem('back_orca_token'); return false } return true } catch { localStorage.removeItem('back_orca_token'); return false }
+    if (!token) return ''
+    try { const payload = JSON.parse(atob(token.split('.')[1])); if (payload.exp * 1000 <= Date.now()) { localStorage.removeItem('back_orca_token'); return '' } return payload.name ?? '' } catch { localStorage.removeItem('back_orca_token'); return '' }
   })
-  const logout = () => { localStorage.removeItem('back_orca_token'); setAuthenticated(false) }
-  return authenticated ? <DashboardApp onLogout={logout} /> : <LoginPage onLogin={() => setAuthenticated(true)} />
+  const logout = () => { localStorage.removeItem('back_orca_token'); setUserName('') }
+  const login = () => { const token = localStorage.getItem('back_orca_token'); if (!token) return; try { setUserName(JSON.parse(atob(token.split('.')[1])).name ?? 'مستخدم') } catch { setUserName('مستخدم') } }
+  return userName ? <DashboardApp onLogout={logout} userName={userName} /> : <LoginPage onLogin={login} />
 }
 
 export default App
