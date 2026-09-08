@@ -112,6 +112,42 @@ app.get('/api/sessions', async (_req, res) => {
   const rows = await Session.find().sort({ sessionDate: -1 }).populate('group', 'name').lean()
   res.json(rows.map((row: any) => ({ id: row._id, code: row.code, group: row.group?.name ?? 'غير محددة', date: row.sessionDate, startTime: row.startTime, endTime: row.endTime, status: row.status })))
 })
+app.get('/api/groups', async (_req, res) => {
+  const groups = await Group.find({ status: 'نشطة' }).sort({ name: 1 }).lean()
+  res.json(groups.map((group) => ({ id: group._id, code: group.code, name: group.name, capacity: group.capacity })))
+})
+app.post('/api/sessions', async (req, res) => {
+  try {
+    const { groupId, sessionDate, startTime, endTime } = req.body
+    if (!Types.ObjectId.isValid(groupId) || !sessionDate || !startTime || !endTime) return res.status(400).json({ error: 'المجموعة والتاريخ والأوقات مطلوبة' })
+    const Session = mongoose.model('Session')
+    const session = await Session.create({ code: await nextCode(Session, 'SES'), group: groupId, sessionDate, startTime, endTime })
+    res.status(201).json({ id: session.code })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إنشاء الجلسة' }) }
+})
+app.get('/api/sessions/:id/attendance', async (req, res) => {
+  try {
+    const Session = mongoose.model('Session')
+    const session: any = await Session.findById(req.params.id).lean()
+    if (!session) return res.status(404).json({ error: 'الجلسة غير موجودة' })
+    const swimmers = await Swimmer.find({ group: session.group, status: 'نشط' }).sort({ firstName: 1 }).lean()
+    const Attendance = mongoose.model('Attendance')
+    const records: any[] = await Attendance.find({ session: session._id }).lean()
+    const recordMap = new Map(records.map((record) => [String(record.swimmer), record]))
+    const subscriptions = await Subscription.find({ swimmer: { $in: swimmers.map((swimmer) => swimmer._id) }, status: 'نشط', startDate: { $lte: session.sessionDate }, endDate: { $gte: session.sessionDate } }).lean()
+    const subscriptionMap = new Map(subscriptions.map((subscription) => [String(subscription.swimmer), subscription]))
+    res.json(swimmers.map((swimmer) => ({ id: swimmer._id, code: swimmer.code, name: fullName(swimmer), subscriptionId: subscriptionMap.get(String(swimmer._id))?._id ?? null, status: recordMap.get(String(swimmer._id))?.status ?? 'لم يسجل' })))
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر تحميل الحضور' }) }
+})
+app.post('/api/sessions/:sessionId/attendance', async (req, res) => {
+  try {
+    const { swimmerId, subscriptionId, status } = req.body
+    if (!Types.ObjectId.isValid(req.params.sessionId) || !Types.ObjectId.isValid(swimmerId) || !Types.ObjectId.isValid(subscriptionId) || !status) return res.status(400).json({ error: 'بيانات الحضور غير مكتملة' })
+    const Attendance = mongoose.model('Attendance')
+    const record = await Attendance.findOneAndUpdate({ session: req.params.sessionId, swimmer: swimmerId }, { session: req.params.sessionId, swimmer: swimmerId, subscription: subscriptionId, status }, { upsert: true, new: true, runValidators: true })
+    res.json({ id: record._id })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر حفظ الحضور' }) }
+})
 app.get('/api/payments', async (_req, res) => {
   const rows = await Payment.find().sort({ createdAt: -1 }).populate('swimmer', 'firstName fatherName familyName').populate('parent', 'name').lean()
   res.json(rows.map((row: any) => ({ id: row._id, code: row.code, swimmer: fullName(row.swimmer), parent: row.parent?.name, amount: row.amount, method: row.method, account: row.account, date: row.createdAt })))
