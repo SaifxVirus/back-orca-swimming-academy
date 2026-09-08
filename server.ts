@@ -16,7 +16,7 @@ if (!mongoUri) throw new Error('MONGODB_URI is required')
 app.use(cors())
 app.use(express.json())
 
-const userSchema = new Schema({ name: { type: String, required: true }, email: { type: String, required: true, unique: true, lowercase: true }, passwordHash: { type: String, required: true }, role: { type: String, default: 'استقبال' }, active: { type: Boolean, default: true } }, { timestamps: true })
+const userSchema = new Schema({ name: { type: String, required: true }, email: { type: String, required: true, unique: true, lowercase: true }, passwordHash: { type: String, required: true }, role: { type: String, default: 'استقبال' }, language: { type: String, enum: ['ar', 'en'], default: 'ar' }, active: { type: Boolean, default: true } }, { timestamps: true })
 
 const parentSchema = new Schema({ code: { type: String, unique: true }, name: { type: String, required: true }, phone: { type: String, required: true }, email: String, address: String, notes: String }, { timestamps: true })
 const coachSchema = new Schema({ code: { type: String, unique: true }, name: { type: String, required: true }, phone: String, contractType: { type: String, default: 'راتب شهري' }, baseSalary: { type: Number, default: 0, min: 0 }, sessionRate: { type: Number, default: 0, min: 0 }, commissionRate: { type: Number, default: 0, min: 0 }, status: { type: String, default: 'نشط' } })
@@ -88,6 +88,17 @@ app.post('/api/login', async (req, res) => {
   res.json({ token, user: { name: user.name, email: user.email, role: user.role }, expiresInDays: 7 })
 })
 app.get('/api/me', async (req: any, res) => res.json(await User.findById(req.user.id).select('name email role active').lean()))
+app.get('/api/profile', async (req: any, res) => res.json(await User.findById(req.user.id).select('name email role language').lean()))
+app.patch('/api/profile', async (req: any, res) => {
+  try {
+    const updates: any = { name: req.body.name, email: req.body.email, language: req.body.language === 'en' ? 'en' : 'ar' }
+    if (req.body.password) updates.passwordHash = await bcrypt.hash(req.body.password, 12)
+    const user: any = await User.findByIdAndUpdate(req.user.id, updates, { new: true, runValidators: true }).select('name email role language')
+    if (!user) return res.status(404).json({ error: 'الحساب غير موجود' })
+    const token = jwt.sign({ id: user._id, name: user.name, role: user.role, language: user.language }, jwtSecret, { expiresIn: '7d' })
+    res.json({ user, token })
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر حفظ الملف الشخصي' }) }
+})
 app.get('/api/users', requireAdmin, async (_req, res) => res.json(await User.find().select('name email role active createdAt').sort({ createdAt: -1 }).lean()))
 app.post('/api/users', requireAdmin, async (req, res) => {
   try { const { name, email, password, role } = req.body; if (!name || !email || !password) return res.status(400).json({ error: 'الاسم والبريد وكلمة المرور مطلوبة' }); const user = await User.create({ name, email, passwordHash: await bcrypt.hash(password, 12), role: role ?? 'استقبال' }); res.status(201).json({ id: user._id }) } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'تعذر إضافة الحساب' }) }
