@@ -52,7 +52,7 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const publicDir = path.join(currentDir, 'dist')
 
 const authenticate = (req: any, res: any, next: any) => {
-  if (req.path === '/api/login' || req.path === '/api/health') return next()
+  if (!req.path.startsWith('/api/') || req.path === '/api/login' || req.path === '/api/health') return next()
   const token = req.headers.authorization?.replace('Bearer ', '')
   try { req.user = jwt.verify(token, jwtSecret); next() } catch { res.status(401).json({ error: 'انتهت الجلسة أو بيانات الدخول غير صحيحة' }) }
 }
