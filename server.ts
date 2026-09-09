@@ -202,7 +202,7 @@ app.post('/api/sessions/:sessionId/attendance', async (req, res) => {
 })
 app.get('/api/payments', async (_req, res) => {
   const rows = await Payment.find().sort({ createdAt: -1 }).populate('swimmer', 'firstName fatherName familyName').populate('parent', 'name').lean()
-  res.json(rows.map((row: any) => ({ id: row._id, code: row.code, swimmer: fullName(row.swimmer) || 'بيع مخزون', parent: row.parent?.name || 'بيع مباشر', items: row.items?.map((item: any) => `${item.name} × ${item.quantity}`).join('، ') || '', amount: row.amount, method: row.method, account: row.account, date: row.createdAt })))
+  res.json(rows.map((row: any) => ({ id: row._id, code: row.code, swimmer: row.swimmer ? fullName(row.swimmer) : 'بيع مخزون', parent: row.parent?.name || 'بيع مباشر', items: row.items?.map((item: any) => `${item.name} × ${item.quantity}`).join('، ') || '', amount: row.amount, method: row.method, account: row.account, date: row.createdAt })))
 })
 app.get('/api/payment-inventory', async (_req, res) => res.json(await InventoryItem.find({ quantity: { $gt: 0 } }).sort({ name: 1 }).lean()))
 app.get('/api/payment-options', async (_req, res) => {
